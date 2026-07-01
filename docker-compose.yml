@@ -1,0 +1,80 @@
+version: '3.8'
+
+services:
+  # ── MySQL Database ─────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: divyajot_mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: divyajot_db
+      MYSQL_USER: divyajot_user
+      MYSQL_PASSWORD: divyajot_pass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./mysql-init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - divyajot_net
+
+  # ── Backend API ────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: divyajot_backend
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql://divyajot_user:divyajot_pass@mysql:3306/divyajot_db
+      NODE_ENV: production
+      PORT: 5000
+      FRONTEND_URL: http://localhost:3000
+      JWT_SECRET: ${JWT_SECRET}
+      REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET}
+      RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
+      RAZORPAY_KEY_SECRET: ${RAZORPAY_KEY_SECRET}
+      CLOUDINARY_CLOUD_NAME: ${CLOUDINARY_CLOUD_NAME}
+      CLOUDINARY_API_KEY: ${CLOUDINARY_API_KEY}
+      CLOUDINARY_API_SECRET: ${CLOUDINARY_API_SECRET}
+      SMTP_HOST: ${SMTP_HOST}
+      SMTP_USER: ${SMTP_USER}
+      SMTP_PASS: ${SMTP_PASS}
+    ports:
+      - "5000:5000"
+    networks:
+      - divyajot_net
+
+  # ── Frontend ───────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: divyajot_frontend
+    restart: always
+    depends_on:
+      - backend
+    environment:
+      VITE_API_URL: http://backend:5000/api
+      VITE_RAZORPAY_KEY_ID: ${RAZORPAY_KEY_ID}
+    ports:
+      - "3000:80"
+    networks:
+      - divyajot_net
+
+volumes:
+  mysql_data:
+
+networks:
+  divyajot_net:
+    driver: bridge
+
